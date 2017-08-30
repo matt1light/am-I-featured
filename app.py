@@ -17,7 +17,10 @@ def getPlaylists(token):
 
 def getTracks(playlist, token):
     r = requests.get('https://api.spotify.com/v1/users/spotify/playlists/' + playlist['id']  + '/tracks', headers = {'Authorization': 'Bearer ' + token})
-    return r.json()['items']
+    try:
+        return r.json()['items']
+    except KeyError:
+        return False
 
 def matchArtist(track, artist, token):
     for track_artist in track['artists']:
@@ -25,29 +28,68 @@ def matchArtist(track, artist, token):
             return True
     return False
 
-def getAllMatches(artist):
+def getCategoryPlaylists(token):
+    categories = getCategories(token)
+    playlists = []
+    for category in categories:
+        r = requests.get('https://api.spotify.com/v1/browse/categories/' + category + '/playlists' , headers = {'Authorization': 'Bearer ' + token})
+        playlists.extend(r.json()['playlists']['items'])
+    return playlists
+
+def getCategories(token):
+    r = requests.get('https://api.spotify.com/v1/browse/categories', headers = {'Authorization': 'Bearer ' + token})
+    categories = []
+    print r.json()['categories']['items']
+    for cat in r.json()['categories']['items']:
+        categories.append(cat['id'])
+        print cat['name']
+    return categories
+
+def getJustTopPlaylists(artist):
     token = getToken()
-    playlists = getPlaylists(token)
+    getMatches(artist, getPlaylists(token), token)
+
+def getAllPlaylists(artist):
+    token = getToken()
+    playlists = []
+    playlists.extend(getCategoryPlaylists(token))
+    # playlists.extend(getPlaylists(token))
+    getMatches(artist, playlists, token)
+
+def getMatches(artist, playlists, token):
     playlistcount = 0
     trackcount = 0
     for playlist in playlists:
         playlistcount += 1
         tracks = getTracks(playlist, token)
+        if not tracks:
+            try:
+                print 'skipped ' + playlist['name']
+            except:
+                print 'skipped ' + playlist['id']
+            continue
         for track in tracks:
             trackcount += 1
             if matchArtist(track['track'], artist, token):
                 try:
-                    print 'Playlist: ' + playlist['name'] + ' Track: ' + track['track']['name'] + ' Artist: ' +  artist
+                    print '--------------------------------------------------'
+                    print 'Playlist: ' + playlist['name'] + ', Track: ' + track['track']['name'] + ', Artist: ' +  artist
+                    print '--------------------------------------------------'
                 except:
                     next
-    print trackcount
-    print playlistcount
+    print str(trackcount) + ' tracks searched'
+    print str(playlistcount) + ' playlists searched'
 
 def run():
     while True:
         name = raw_input('What is the name of the artist you would like to search for: ')
         if name == "":
             break
-        getAllMatches(name)
+        category = raw_input('Do you want to search the categories as well? (y/n)')
+        if category == 'y':
+            getAllPlaylists(name)
+
+        else:
+            getJustTopPlaylists(name)
 
 run()
